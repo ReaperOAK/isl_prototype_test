@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real-time ISL Gesture Detection</title>
+    <link rel="stylesheet" href="{{ url_for('styles') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>Real-time Indian Sign Language (ISL) Gesture Detection</h1>
+        <p>Use your webcam to detect ISL gestures in real time.</p>
+        <img src="{{ url_for('video_feed') }}" width="640" height="480">
+        
+        <div id="gesture-labels">
+            <h2>Gesture Labels</h2>
+            <ul id="labels-list">
+                {% for label in labels %}
+                    <li>{{ label }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+</body>
+</html>
