@@ -1,10 +1,11 @@
-from flask import Flask, render_template, Response, jsonify, make_response
+from flask import Flask, render_template, Response, jsonify, make_response, request
 import cv2
 import numpy as np
 import tensorflow as tf
 from collections import deque
 from tensorflow.keras.models import load_model
 import mediapipe as mp
+import io
 
 # Custom class for gesture recognition
 class SignLanguageRecognizer:
@@ -15,12 +16,7 @@ class SignLanguageRecognizer:
 
         self.model = load_model('sign_language_model.h5')
         self.max_length = 90
-        self.gesture_labels = ['Alive', 'Bad', 'Beautiful', 'Big large', 'Blind', 'Cheap', 'Clean', 'Cold', 'Cool', 'Curved', 
-                               'Dead', 'Deaf', 'Deep', 'Dirty', 'Dry', 'Expensive', 'Famous', 'Fast', 'Female', 'Flat', 'Good', 
-                               'Happy', 'Hard', 'Healthy', 'Heavy', 'High', 'Hot', 'Light', 'Long', 'Loose', 'Loud', 'Low', 
-                               'Male', 'Mean', 'Narrow', 'New', 'Nice', 'Old', 'Poor', 'Quiet', 'Rich', 'Sad', 'Shallow', 
-                               'Short', 'Sick', 'Slow', 'Small little', 'Soft', 'Strong', 'Tall', 'Thick', 'Thin', 'Tight', 
-                               'Ugly', 'Warm', 'Weak', 'Wet', 'Wide', 'Young']
+        self.gesture_labels = ['Beautiful', 'Blind','Deaf','Happy','Loud']
         
         self.sequence = deque(maxlen=self.max_length)
         self.predictions = []
@@ -47,16 +43,14 @@ class SignLanguageRecognizer:
             if len(self.predictions) >= 3 and len(set(self.predictions[-3:])) == 1:
                 return self.gesture_labels[self.predictions[-1]]
             return ""
+        return ""
 
     def process_frame(self, frame):
         landmarks = self.extract_landmarks(frame)
         gesture = self.recognize_gesture()
         self.sequence.append(landmarks)
 
-        cv2.putText(frame, f"Gesture: {gesture}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-
-        return frame, gesture
-
+        return gesture
 
 # Flask application setup
 app = Flask(__name__)
@@ -132,22 +126,6 @@ img {
 }
 """
 
-# Video stream generator
-def generate_frames():
-    cap = cv2.VideoCapture(0)
-    while True:
-        success, frame = cap.read()
-        if not success:
-            break
-        else:
-            frame, gesture = recognizer.process_frame(frame)
-            ret, buffer = cv2.imencode('.jpg', frame)
-            frame = buffer.tobytes()
-            yield (b'--frame\r\n'
-                   b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
-
-    cap.release()
-
 @app.route('/')
 def index():
     return render_template('index.html', labels=recognizer.gesture_labels)
@@ -165,6 +143,25 @@ def styles():
 @app.route('/gesture_labels')
 def gesture_labels():
     return jsonify(recognizer.gesture_labels)
+
+@app.route('/process_frame', methods=['POST'])
+def process_frame():
+    if 'frame' not in request.files:
+        return jsonify({'error': 'No frame part'}), 400
+    
+    frame_file = request.files['frame']
+    if frame_file.filename == '':
+        return jsonify({'error': 'No selected file'}), 400
+    
+    # Read the image file and process it
+    image_bytes = frame_file.read()
+    image = np.frombuffer(image_bytes, np.uint8)
+    frame = cv2.imdecode(image, cv2.IMREAD_COLOR)
+    
+    # Process the frame
+    gesture = recognizer.process_frame(frame)
+    
+    return jsonify({'gesture': gesture})
 
 # Run the application
 if __name__ == "__main__":
